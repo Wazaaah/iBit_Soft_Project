@@ -77,11 +77,12 @@ WSGI_APPLICATION = 'iBit_Soft_Project.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'ibit_soft_project',
-        'USER': 'postgres',
-        'PASSWORD': 'Warmspeaker.12',
-        'HOST': 'localhost',
+        # 'ENGINE': 'django.db.backends.mysql',
+        # 'NAME': 'iBit_Soft_Project',
+        # 'USER': 'root',
+        # 'PASSWORD': 'Warmspeaker.12',
+        # 'HOST': 'localhost',
+        # 'PORT': '3307',
     }
 }
 
