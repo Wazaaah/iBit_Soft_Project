@@ -1,10 +1,12 @@
 from django.contrib import messages
-from django.shortcuts import render, redirect
+from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.models import User, auth
 from django.utils import timezone
 from django.utils.timezone import now
-from django.contrib.auth.decorators import user_passes_test
+from .forms import TimeframeForm, UserTimeframeForm, UserMonthlyForm
 from .models import AttendanceRecord
+from django.db.models import Sum
+from datetime import timedelta
 
 
 # Create your views here.
@@ -49,7 +51,7 @@ def login(request):
         if user is not None:
             today = timezone.now().date()
             attendance, created = AttendanceRecord.objects.get_or_create(user=user, date=today)
-            if created:  # Only set first_login if the record is newly created
+            if created:
                 attendance.first_login = timezone.now()
                 attendance.save()
 
@@ -83,7 +85,217 @@ def logout(request):
 def is_admin(user):
     return user.is_superuser
 
-@user_passes_test(is_admin)
-def admin_report_view(request):
-    # Your code for generating the report
-    return render(request, 'admin_report.html')
+
+def admin_report(request):
+    # Get today's date
+    today = timezone.now().date()
+
+    # Fetch attendance records for today
+    records = AttendanceRecord.objects.filter(date=today)
+
+    context = {
+        'records': records
+    }
+
+    return render(request, 'admin_report.html', context)
+
+
+def report_for_today(request):
+    # Get today's date
+    today = timezone.now().date()
+
+    # Fetch attendance records for today
+    records = AttendanceRecord.objects.filter(date=today)
+
+    # Create a list to hold formatted records
+    formatted_records = []
+
+    for record in records:
+        total_hours = record.total_hours_worked
+        # Format total_hours to HH:MM:SS
+        total_hours_formatted = str(total_hours)[:-7] if total_hours.days == 0 else str(total_hours)
+
+        # Add the record with formatted total hours to the list
+        formatted_records.append({
+            'user': record.user,
+            'date': record.date,
+            'total_hours_formatted': total_hours_formatted,
+            # Include other fields you want to display
+        })
+
+    context = {
+        'records': formatted_records
+    }
+
+    return render(request, 'report_for_today.html', context)
+
+
+def report_for_the_month(request):
+    end_date = timezone.now().date()
+    start_date = end_date.replace(day=1)
+
+    # Fetch all users
+    users = User.objects.all()
+
+    # Prepare a dictionary to hold user_id, full name, and total hours
+    user_hours = {}
+
+    for user in users:
+        attendance_records = AttendanceRecord.objects.filter(user=user, date__range=[start_date, end_date])
+        total_hours = attendance_records.aggregate(Sum('total_hours_worked'))['total_hours_worked__sum'] or timedelta()
+
+        # Format total_hours to HH:MM:SS
+        total_hours_formatted = str(total_hours)[:-7] if total_hours.days == 0 else str(total_hours)
+
+        # Store user details including user_id, full name, and total hours
+        user_hours[user.id] = {
+            'full_name': f"{user.first_name} {user.last_name}",
+            'total_hours': total_hours_formatted
+        }
+
+    # Format the dates for the template
+    start_date_formatted = start_date.strftime('%B %Y')
+    end_date_formatted = end_date.strftime('%B %Y')
+
+    context = {
+        'user_hours': user_hours,
+        'start_date': start_date_formatted,
+        'end_date': end_date_formatted
+    }
+
+    return render(request, 'report_for_the_month.html', context)
+
+
+def report_for_the_month_user(request):
+    user_hours = None
+    start_date_formatted = end_date_formatted = None
+
+    if request.method == 'POST':
+        form = UserMonthlyForm(request.POST)
+        if form.is_valid():
+            user_id = form.cleaned_data['user_id']
+            end_date = timezone.now().date()
+            start_date = end_date.replace(day=1)
+
+            # Fetch the user by ID
+            user = get_object_or_404(User, id=user_id)
+
+            # Get attendance records and calculate total hours
+            attendance_records = AttendanceRecord.objects.filter(user=user, date__range=[start_date, end_date])
+            total_hours = attendance_records.aggregate(Sum('total_hours_worked'))[
+                              'total_hours_worked__sum'] or timedelta()
+
+            # Format total_hours to HH:MM:SS
+            total_hours_formatted = str(total_hours)[:-7] if total_hours.days == 0 else str(total_hours)
+
+            # Format the dates for the template
+            start_date_formatted = start_date.strftime('%B %d, %Y')
+            end_date_formatted = end_date.strftime('%B %d, %Y')
+
+            user_hours = {
+                'user_id': user.id,
+                'full_name': f"{user.first_name} {user.last_name}",
+                'total_hours': total_hours_formatted
+            }
+
+    else:
+        form = UserMonthlyForm()
+
+    context = {
+        'form': form,
+        'user_hours': user_hours,
+        'start_date': start_date_formatted,
+        'end_date': end_date_formatted
+    }
+
+    return render(request, 'report_for_the_month_user.html', context)
+
+
+def report_for_given_time_frame_user(request):
+    user_hours = None
+    start_date_formatted = end_date_formatted = None
+
+    if request.method == 'POST':
+        form = UserTimeframeForm(request.POST)
+        if form.is_valid():
+            user_id = form.cleaned_data['user_id']
+            start_date = form.cleaned_data['start_date']
+            end_date = form.cleaned_data['end_date']
+
+            # Fetch the user by ID
+            user = get_object_or_404(User, id=user_id)
+
+            # Get attendance records and calculate total hours
+            attendance_records = AttendanceRecord.objects.filter(user=user, date__range=[start_date, end_date])
+            total_hours = attendance_records.aggregate(Sum('total_hours_worked'))['total_hours_worked__sum'] or timedelta()
+
+            # Format total_hours to HH:MM:SS
+            total_hours_formatted = str(total_hours)[:-7] if total_hours.days == 0 else str(total_hours)
+
+            # Format the dates for the template
+            start_date_formatted = start_date.strftime('%B %d, %Y')
+            end_date_formatted = end_date.strftime('%B %d, %Y')
+
+            user_hours = {
+                'user_id': user_id,
+                'first_name': user.first_name,
+                'last_name': user.last_name,
+                'total_hours': total_hours_formatted
+            }
+
+    else:
+        form = UserTimeframeForm()
+
+    context = {
+        'form': form,
+        'user_hours': user_hours,
+        'start_date': start_date_formatted,
+        'end_date': end_date_formatted
+    }
+
+    return render(request, 'report_for_given_time_frame_user.html', context)
+
+
+def report_for_given_time_frame(request):
+    user_hours = {}
+    start_date_formatted = end_date_formatted = None
+
+    if request.method == 'POST':
+        form = TimeframeForm(request.POST)
+        if form.is_valid():
+            start_date = form.cleaned_data['start_date']
+            end_date = form.cleaned_data['end_date']
+
+            # Fetch all users
+            users = User.objects.all()
+
+            # Prepare a dictionary to hold user_id, full name, and total hours
+            for user in users:
+                attendance_records = AttendanceRecord.objects.filter(user=user, date__range=[start_date, end_date])
+                total_hours = attendance_records.aggregate(Sum('total_hours_worked'))[
+                                  'total_hours_worked__sum'] or timedelta()
+
+                # Format total_hours to HH:MM:SS
+                total_hours_formatted = str(total_hours)[:-7] if total_hours.days == 0 else str(total_hours)
+
+                # Store user details including user_id, full name, and total hours
+                user_hours[user.id] = {
+                    'full_name': f"{user.first_name} {user.last_name}",
+                    'total_hours': total_hours_formatted
+                }
+
+            # Format the dates for the template
+            start_date_formatted = start_date.strftime('%B %d, %Y')
+            end_date_formatted = end_date.strftime('%B %d, %Y')
+
+    else:
+        form = TimeframeForm()
+
+    context = {
+        'form': form,
+        'user_hours': user_hours,
+        'start_date': start_date_formatted,
+        'end_date': end_date_formatted
+    }
+
+    return render(request, 'report_for_given_time_frame.html', context)
