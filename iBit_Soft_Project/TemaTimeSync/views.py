@@ -1,6 +1,10 @@
 from django.contrib import messages
 from django.shortcuts import render, redirect
 from django.contrib.auth.models import User, auth
+from django.utils import timezone
+from django.utils.timezone import now
+from django.contrib.auth.decorators import user_passes_test
+from .models import AttendanceRecord
 
 
 # Create your views here.
@@ -40,7 +44,15 @@ def login(request):
         password = request.POST['password']
         user = auth.authenticate(username=username, password=password)
 
+        print(f"user: {user}, type: {type(user)}")
+
         if user is not None:
+            today = timezone.now().date()
+            attendance, created = AttendanceRecord.objects.get_or_create(user=user, date=today)
+            if created:  # Only set first_login if the record is newly created
+                attendance.first_login = timezone.now()
+                attendance.save()
+
             auth.login(request, user)
             return redirect('/')
         else:
@@ -55,5 +67,23 @@ def index(request):
 
 
 def logout(request):
+    if request.user.is_authenticated:
+        user = request.user
+        today = now().date()
+        attendance = AttendanceRecord.objects.filter(user=user, date=today).first()
+        if attendance and attendance.first_login:
+            attendance.last_logout = now()
+            attendance.total_hours_worked = attendance.last_logout - attendance.first_login
+            attendance.save()
+
     auth.logout(request)
     return redirect('/')
+
+
+def is_admin(user):
+    return user.is_superuser
+
+@user_passes_test(is_admin)
+def admin_report_view(request):
+    # Your code for generating the report
+    return render(request, 'admin_report.html')
