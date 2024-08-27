@@ -6,7 +6,7 @@ from django.utils.timezone import now
 from .forms import TimeframeForm, UserTimeframeForm, UserMonthlyForm
 from .models import AttendanceRecord
 from django.db.models import Sum
-from datetime import timedelta
+from datetime import timedelta, datetime
 
 
 # Create your views here.
@@ -74,8 +74,15 @@ def logout(request):
         today = now().date()
         attendance = AttendanceRecord.objects.filter(user=user, date=today).first()
         if attendance and attendance.first_login:
-            attendance.last_logout = now()
-            attendance.total_hours_worked = attendance.last_logout - attendance.first_login
+            current_time = now().time()
+            attendance.last_logout = current_time
+
+            # Calculate total hours worked
+            first_login_datetime = datetime.combine(today, attendance.first_login)
+            last_logout_datetime = datetime.combine(today, current_time)
+            total_hours_worked = last_logout_datetime - first_login_datetime
+
+            attendance.total_hours_worked = total_hours_worked
             attendance.save()
 
     auth.logout(request)
