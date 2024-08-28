@@ -46,13 +46,11 @@ def login(request):
         password = request.POST['password']
         user = auth.authenticate(username=username, password=password)
 
-        print(f"user: {user}, type: {type(user)}")
-
         if user is not None:
-            today = timezone.now().date()
+            today = now().date()
             attendance, created = AttendanceRecord.objects.get_or_create(user=user, date=today)
             if created:
-                attendance.first_login = timezone.now()
+                attendance.first_login = now()
                 attendance.save()
 
             auth.login(request, user)
@@ -69,24 +67,40 @@ def index(request):
 
 
 def logout(request):
-    if request.user.is_authenticated:
-        user = request.user
-        today = now().date()
-        attendance = AttendanceRecord.objects.filter(user=user, date=today).first()
-        if attendance and attendance.first_login:
-            current_time = now().time()
-            attendance.last_logout = current_time
+    user = request.user
 
-            # Calculate total hours worked
-            first_login_datetime = datetime.combine(today, attendance.first_login)
-            last_logout_datetime = datetime.combine(today, current_time)
-            total_hours_worked = last_logout_datetime - first_login_datetime
+    # If the user is a superuser, log them out immediately
+    if user.is_superuser:
+        auth.logout(request)
+        return redirect('/')
 
-            attendance.total_hours_worked = total_hours_worked
-            attendance.save()
+    if request.method == 'POST':
+        username = request.POST['username']
+        password = request.POST['password']
+        user = auth.authenticate(username=username, password=password)
 
-    auth.logout(request)
-    return redirect('/')
+        if user is not None and user.is_authenticated:
+            today = now().date()
+            attendance = AttendanceRecord.objects.filter(user=user, date=today).first()
+            if attendance and attendance.first_login:
+                current_time = now().time()
+                attendance.last_logout = current_time
+
+                # Calculate total hours worked
+                first_login_datetime = datetime.combine(today, attendance.first_login)
+                last_logout_datetime = datetime.combine(today, current_time)
+                total_hours_worked = last_logout_datetime - first_login_datetime
+
+                attendance.total_hours_worked = total_hours_worked
+                attendance.save()
+
+            auth.logout(request)
+            return redirect('/')
+        else:
+            messages.error(request, "Invalid Credentials or you are not logged in.")
+            return redirect('login')
+    else:
+        return render(request, 'logout.html')
 
 
 def is_admin(user):
@@ -120,13 +134,13 @@ def report_for_today(request):
     for record in records:
         total_hours = record.total_hours_worked
         # Format total_hours to HH:MM:SS
-        total_hours_formatted = str(total_hours)[:-7] if total_hours.days == 0 else str(total_hours)
+        # total_hours_formatted = str(total_hours)[:-7] if total_hours.days == 0 else str(total_hours)
 
         # Add the record with formatted total hours to the list
         formatted_records.append({
             'user': record.user,
             'date': record.date,
-            'total_hours_formatted': total_hours_formatted,
+            'total_hours_formatted': total_hours,
             # Include other fields you want to display
         })
 
