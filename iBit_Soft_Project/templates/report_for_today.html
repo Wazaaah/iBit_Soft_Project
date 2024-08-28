@@ -18,6 +18,7 @@
                                         <tr>
                                             <th>User ID</th>
                                             <th>Full Name</th>
+                                            <th> Was Late</th>
                                             <th>Total Hours Worked</th>
                                         </tr>
                                     </thead>
@@ -26,6 +27,7 @@
                                         <tr>
                                             <td>{{ record.user.id }}</td>
                                             <td>{{ record.user.get_full_name }}</td>
+                                            <td>{{ record.is_late }}</td>
                                             <td>{{ record.total_hours_formatted }}</td>
                                         </tr>
                                         {% endfor %}

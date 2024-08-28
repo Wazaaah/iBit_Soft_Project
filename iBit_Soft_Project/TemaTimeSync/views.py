@@ -6,7 +6,25 @@ from django.utils.timezone import now
 from .forms import TimeframeForm, UserTimeframeForm, UserMonthlyForm
 from .models import AttendanceRecord
 from django.db.models import Sum
-from datetime import timedelta, datetime
+from datetime import timedelta, datetime, time
+import joblib
+import os
+from django.conf import settings
+import pandas as pd
+
+# Load the model and encoder
+model_path = os.path.join(settings.BASE_DIR, 'lateness_prediction_model.pkl')
+encoder_path = os.path.join(settings.BASE_DIR, 'label_encoders.pkl')
+
+try:
+    model = joblib.load(model_path)
+except FileNotFoundError as e:
+    print(f"Model file not found: {e}")
+
+try:
+    encoder = joblib.load(encoder_path)
+except FileNotFoundError as e:
+    print(f"Model file not found: {e}")
 
 
 # Create your views here.
@@ -40,6 +58,9 @@ def register(request):
         return render(request, 'register.html')
 
 
+from datetime import datetime, time as dt_time
+
+
 def login(request):
     if request.method == 'POST':
         username = request.POST['username']
@@ -47,10 +68,15 @@ def login(request):
         user = auth.authenticate(username=username, password=password)
 
         if user is not None:
-            today = now().date()
+            today = datetime.now().date()
             attendance, created = AttendanceRecord.objects.get_or_create(user=user, date=today)
             if created:
-                attendance.first_login = now()
+                attendance.first_login = datetime.now().time()  # Store only the time part
+
+                # Check if the first login is after 8:00 AM
+                late_threshold = dt_time(8, 0, 0)  # 8:00 AM
+                attendance.is_late = attendance.first_login > late_threshold
+
                 attendance.save()
 
             auth.login(request, user)
@@ -141,6 +167,7 @@ def report_for_today(request):
             'user': record.user,
             'date': record.date,
             'total_hours_formatted': total_hours,
+            'is_late': record.is_late
             # Include other fields you want to display
         })
 
@@ -248,7 +275,8 @@ def report_for_given_time_frame_user(request):
 
             # Get attendance records and calculate total hours
             attendance_records = AttendanceRecord.objects.filter(user=user, date__range=[start_date, end_date])
-            total_hours = attendance_records.aggregate(Sum('total_hours_worked'))['total_hours_worked__sum'] or timedelta()
+            total_hours = attendance_records.aggregate(Sum('total_hours_worked'))[
+                              'total_hours_worked__sum'] or timedelta()
 
             # Format total_hours to HH:MM:SS
             total_hours_formatted = str(total_hours)[:-7] if total_hours.days == 0 else str(total_hours)
