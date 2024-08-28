@@ -9,6 +9,7 @@ class AttendanceRecord(models.Model):
     first_login = models.TimeField(null=True, blank=True)
     last_logout = models.TimeField(null=True, blank=True)
     total_hours_worked = models.DurationField(null=True, blank=True)
+    is_late = models.BooleanField(default=False)
 
     class Meta:
         unique_together = ('user', 'date')
