@@ -217,6 +217,7 @@ def report_for_the_month(request):
 def report_for_the_month_user(request):
     user_hours = None
     start_date_formatted = end_date_formatted = None
+    daily_records = []
 
     if request.method == 'POST':
         form = UserMonthlyForm(request.POST)
@@ -225,16 +226,20 @@ def report_for_the_month_user(request):
             end_date = timezone.now().date()
             start_date = end_date.replace(day=1)
 
-            # Fetch the user by ID
             user = get_object_or_404(User, id=user_id)
 
-            # Get attendance records and calculate total hours
-            attendance_records = AttendanceRecord.objects.filter(user=user, date__range=[start_date, end_date])
-            total_hours = attendance_records.aggregate(Sum('total_hours_worked'))[
-                              'total_hours_worked__sum'] or timedelta()
-
-            # Format total_hours to HH:MM:SS
-            total_hours_formatted = str(total_hours)[:-7] if total_hours.days == 0 else str(total_hours)
+            # Get attendance records for each day in the month
+            current_date = start_date
+            while current_date <= end_date:
+                record = AttendanceRecord.objects.filter(user=user, date=current_date).first()
+                if record:
+                    daily_records.append({
+                        'date': current_date,
+                        'total_hours': record.total_hours_worked,
+                        'first_login': record.first_login,
+                        'is_late': record.is_late
+                    })
+                current_date += timedelta(days=1)
 
             # Format the dates for the template
             start_date_formatted = start_date.strftime('%B %d, %Y')
@@ -242,8 +247,7 @@ def report_for_the_month_user(request):
 
             user_hours = {
                 'user_id': user.id,
-                'full_name': f"{user.first_name} {user.last_name}",
-                'total_hours': total_hours_formatted
+                'full_name': f"{user.first_name} {user.last_name}"
             }
 
     else:
@@ -253,7 +257,8 @@ def report_for_the_month_user(request):
         'form': form,
         'user_hours': user_hours,
         'start_date': start_date_formatted,
-        'end_date': end_date_formatted
+        'end_date': end_date_formatted,
+        'daily_records': daily_records
     }
 
     return render(request, 'report_for_the_month_user.html', context)
