@@ -1,9 +1,14 @@
+from django.contrib.auth.models import User
 from django.db import models
+from django.utils import timezone
 
 
-# Create your models here.
-class User(models.Model):
-    first_name = models.CharField(max_length=125)
-    last_name = models.CharField(max_length=125)
-    username = models.CharField(max_length=120)
-    email = models.CharField(max_length=120)
+class AttendanceRecord(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    date = models.DateField(default=timezone.now)
+    first_login = models.TimeField(null=True, blank=True)
+    last_logout = models.TimeField(null=True, blank=True)
+    total_hours_worked = models.DurationField(null=True, blank=True)
+
+    class Meta:
+        unique_together = ('user', 'date')

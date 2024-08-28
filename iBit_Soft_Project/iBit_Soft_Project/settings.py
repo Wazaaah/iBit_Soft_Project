@@ -77,11 +77,12 @@ WSGI_APPLICATION = 'iBit_Soft_Project.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'ibit_soft_project',
-        'USER': 'postgres',
+        'ENGINE': 'django.db.backends.mysql',
+        'NAME': 'iBit_Soft_Project',
+        'USER': 'root',
         'PASSWORD': 'Warmspeaker.12',
         'HOST': 'localhost',
+        'PORT': '3307',
     }
 }
 
@@ -111,6 +112,8 @@ AUTH_PASSWORD_VALIDATORS = [
 LANGUAGE_CODE = 'en-us'
 
 TIME_ZONE = 'UTC'
+
+TIME_FORMAT = 'H:i'
 
 USE_I18N = True
 
