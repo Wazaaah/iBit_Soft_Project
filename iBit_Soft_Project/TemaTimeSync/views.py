@@ -6,25 +6,9 @@ from django.utils.timezone import now
 from .forms import TimeframeForm, UserTimeframeForm, UserMonthlyForm
 from .models import AttendanceRecord
 from django.db.models import Sum
-from datetime import timedelta, datetime, time
-import joblib
-import os
-from django.conf import settings
-import pandas as pd
-
-# Load the model and encoder
-model_path = os.path.join(settings.BASE_DIR, 'lateness_prediction_model.pkl')
-encoder_path = os.path.join(settings.BASE_DIR, 'label_encoders.pkl')
-
-try:
-    model = joblib.load(model_path)
-except FileNotFoundError as e:
-    print(f"Model file not found: {e}")
-
-try:
-    encoder = joblib.load(encoder_path)
-except FileNotFoundError as e:
-    print(f"Model file not found: {e}")
+from datetime import timedelta
+from datetime import datetime, time as dt_time
+import requests
 
 
 # Create your views here.
@@ -56,9 +40,6 @@ def register(request):
 
     else:
         return render(request, 'register.html')
-
-
-from datetime import datetime, time as dt_time
 
 
 def login(request):
@@ -353,3 +334,65 @@ def report_for_given_time_frame(request):
     }
 
     return render(request, 'report_for_given_time_frame.html', context)
+
+
+def predict_lateness_for_the_rest_of_the_month(request):
+    prediction = None
+    if request.method == 'POST':
+        form = UserMonthlyForm(request.POST)
+        if form.is_valid():
+            user_id = form.cleaned_data['user_id']
+            end_date = timezone.now().date()
+            start_date = end_date.replace(day=1)
+            user = get_object_or_404(User, id=user_id)
+
+            # Fetch attendance records for the month so far
+            records = AttendanceRecord.objects.filter(user=user, date__range=[start_date, end_date])
+
+            # Prepare data for the model
+            attendance_data = ""
+            for record in records:
+                attendance_data += (
+                    f"Date: {record.date}, "
+                    f"First Login: {record.first_login}, "
+                    f"Total Hours: {record.total_hours_worked}, "
+                    f"Was Late: {record.is_late}\n"
+                )
+
+            # Generate the prompt for the API
+            prompt = (
+                f"I am the manager of this company 'iBit Soft Ltd'."
+                f"The following data represents the attendance of the user {user.get_full_name()} "
+                f"for the month:\n\n"
+                f"{attendance_data}\n\n"
+                "Based on this data, predict the likelihood of the user being late for the rest of the month. "
+                f"Ensure that the maximum words you give is 300. Therefore, be as specific as possible"
+            )
+
+            # API call to Cohere (or any other model you want to use)
+            cohere_api_key = "omFu9KFgafnalHdiwZX7qxiAOaiK7sX8HQo5XzCA"  # Secure your API key
+            cohere_api_url = "https://api.cohere.ai/v1/generate"
+            headers = {
+                "Authorization": f"Bearer {cohere_api_key}",
+                "Content-Type": "application/json"
+            }
+
+            payload = {
+                "model": "command-xlarge",
+                "prompt": prompt,
+                "max_tokens": 300  # Adjust as needed
+            }
+
+            response = requests.post(cohere_api_url, json=payload, headers=headers)
+            if response.status_code == 200:
+                prediction = response.json().get('generations')[0].get('text')
+            else:
+                prediction = "Error in generating prediction. Please try again later."
+
+    else:
+        form = UserMonthlyForm()
+
+    return render(request, 'predict_lateness_for_the_rest_of_the_month.html', {
+        'form': form,
+        'prediction': prediction,
+    })

@@ -13,6 +13,7 @@ urlpatterns = [
     path('report_for_given_time_frame_user', views.report_for_given_time_frame_user,
          name='report_for_given_time_frame_user'),
     path('report_for_given_time_frame', views.report_for_given_time_frame, name='report_for_given_time_frame'),
+    path('predict_lateness_for_the_rest_of_the_month', views.predict_lateness_for_the_rest_of_the_month,name='predict_lateness_for_the_rest_of_the_month'),
 
 ]
 
