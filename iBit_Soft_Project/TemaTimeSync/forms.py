@@ -3,7 +3,7 @@ from django import forms
 
 
 class UserMonthlyForm(forms.Form):
-    user_id = forms.IntegerField(required=True, label="User ID")
+    user_name = forms.CharField(required=True,label="Name")
 
 
 class TimeframeForm(forms.Form):
@@ -12,6 +12,9 @@ class TimeframeForm(forms.Form):
 
 
 class UserTimeframeForm(forms.Form):
-    user_id = forms.IntegerField(required=True, label="User ID")
+    user_name = forms.CharField(required=True,label="Name")
     start_date = forms.DateField(widget=forms.DateInput(attrs={'type': 'date'}), required=True, label="Start Date")
     end_date = forms.DateField(widget=forms.DateInput(attrs={'type': 'date'}), required=True, label="End Date")
+
+
+   

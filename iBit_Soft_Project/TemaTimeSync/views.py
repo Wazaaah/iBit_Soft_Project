@@ -213,11 +213,11 @@ def report_for_the_month_user(request):
     if request.method == 'POST':
         form = UserMonthlyForm(request.POST)
         if form.is_valid():
-            user_id = form.cleaned_data['user_id']
+            user_name = form.cleaned_data['user_name']
             end_date = timezone.now().date()
             start_date = end_date.replace(day=1)
 
-            user = get_object_or_404(User, id=user_id)
+            user = get_object_or_404(User, username=user_name)
 
             # Get attendance records for each day in the month
             current_date = start_date
@@ -237,7 +237,7 @@ def report_for_the_month_user(request):
             end_date_formatted = end_date.strftime('%B %d, %Y')
 
             user_hours = {
-                'user_id': user.id,
+                'user_name': user.username,
                 'full_name': f"{user.first_name} {user.last_name}"
             }
 
@@ -262,12 +262,12 @@ def report_for_given_time_frame_user(request):
     if request.method == 'POST':
         form = UserTimeframeForm(request.POST)
         if form.is_valid():
-            user_id = form.cleaned_data['user_id']
+            user_name = form.cleaned_data['user_name']
             start_date = form.cleaned_data['start_date']
             end_date = form.cleaned_data['end_date']
 
-            # Fetch the user by ID
-            user = get_object_or_404(User, id=user_id)
+            # Fetch the user by name
+            user = get_object_or_404(User, username=user_name)
 
             # Get attendance records and calculate total hours
             attendance_records = AttendanceRecord.objects.filter(user=user, date__range=[start_date, end_date])
@@ -282,7 +282,7 @@ def report_for_given_time_frame_user(request):
             end_date_formatted = end_date.strftime('%B %d, %Y')
 
             user_hours = {
-                'user_id': user_id,
+                'user_id': user.id,
                 'first_name': user.first_name,
                 'last_name': user.last_name,
                 'total_hours': total_hours_formatted
