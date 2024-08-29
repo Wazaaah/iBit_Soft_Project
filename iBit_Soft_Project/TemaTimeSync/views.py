@@ -390,7 +390,7 @@ def predict_lateness_for_the_rest_of_the_month(request):
             payload = {
                 "model": "command-xlarge",
                 "prompt": prompt,
-                "max_tokens": 300  # Adjust as needed
+                "max_tokens": 500  # Adjust as needed
             }
 
             response = requests.post(cohere_api_url, json=payload, headers=headers)
