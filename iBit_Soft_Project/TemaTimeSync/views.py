@@ -4,11 +4,12 @@ from django.contrib.auth.models import User, auth
 from django.utils import timezone
 from django.utils.timezone import now
 from .forms import TimeframeForm, UserTimeframeForm, UserMonthlyForm
-from .models import AttendanceRecord
+from .models import AttendanceRecord, UserOffDay
 from django.db.models import Sum
 from datetime import timedelta
 from datetime import datetime, time as dt_time
 import requests
+from django.contrib.auth import authenticate, login as auth_login
 
 
 # Create your views here.
@@ -46,10 +47,17 @@ def login(request):
     if request.method == 'POST':
         username = request.POST['username']
         password = request.POST['password']
-        user = auth.authenticate(username=username, password=password)
+        user = authenticate(username=username, password=password)
 
         if user is not None:
             today = datetime.now().date()
+            day_name = today.strftime('%A')  # Get the current day of the week
+
+            # Check if today is the user's off day
+            if UserOffDay.objects.filter(user=user, off_day=day_name).exists():
+                messages.info(request, "You cannot log in on your off day.")
+                return redirect('login')
+
             attendance, created = AttendanceRecord.objects.get_or_create(user=user, date=today)
             if created:
                 attendance.first_login = datetime.now().time()  # Store only the time part
@@ -60,7 +68,7 @@ def login(request):
 
                 attendance.save()
 
-            auth.login(request, user)
+            auth_login(request, user)
             return redirect('/')
         else:
             messages.info(request, "Invalid Credentials")
