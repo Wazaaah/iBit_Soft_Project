@@ -426,7 +426,7 @@ def generate_payroll(request):
         total_hours_float = total_hours.total_seconds() / 3600  # Total hours as a float
 
         # Calculate salary based on hourly rate
-        hourly_rate = 20.0  # Example hourly rate
+        hourly_rate = 20.0  
         salary = total_hours_float * hourly_rate
 
         # Round total_hours and salary to two decimal places
@@ -463,7 +463,7 @@ def export_to_excel(request):
         total_hours_float = total_hours.total_seconds() / 3600  # Total hours as a float
 
         # Calculate salary based on hourly rate
-        hourly_rate = 20.0  # Example hourly rate
+        hourly_rate = 20.0  
         salary = total_hours_float * hourly_rate
 
         # Round total_hours and salary to two decimal places
