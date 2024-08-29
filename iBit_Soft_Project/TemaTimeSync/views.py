@@ -9,6 +9,8 @@ from django.db.models import Sum
 from datetime import timedelta
 from datetime import datetime, time as dt_time
 import requests
+import pandas as pd
+from django.http import HttpResponse
 from django.contrib.auth import authenticate, login as auth_login
 
 
@@ -404,3 +406,84 @@ def predict_lateness_for_the_rest_of_the_month(request):
         'form': form,
         'prediction': prediction,
     })
+
+
+def generate_payroll(request):
+    end_date = timezone.now().date()
+    start_date = end_date.replace(day=1)
+
+    # Fetch all users
+    users = User.objects.all()
+
+    # Prepare a dictionary to hold payroll data
+    payroll_data = {}
+
+    for user in users:
+        attendance_records = AttendanceRecord.objects.filter(user=user, date__range=[start_date, end_date])
+        total_hours = attendance_records.aggregate(Sum('total_hours_worked'))['total_hours_worked__sum'] or timedelta()
+
+        # Convert total hours worked to float representing hours
+        total_hours_float = total_hours.total_seconds() / 3600  # Total hours as a float
+
+        # Calculate salary based on hourly rate
+        hourly_rate = 20.0  # Example hourly rate
+        salary = total_hours_float * hourly_rate
+
+        # Round total_hours and salary to two decimal places
+        total_hours_rounded = round(total_hours_float, 3)
+        salary_rounded = round(salary, 3)
+
+        # Add the user's payroll info to the dictionary
+        payroll_data[user.id] = {
+            'full_name': f"{user.first_name} {user.last_name}",
+            'total_hours': total_hours_rounded,
+            'salary': salary_rounded,
+        }
+
+    # Pass the payroll data to the template
+    context = {'payroll_data': payroll_data}
+    return render(request, 'payroll.html', context)
+
+
+def export_to_excel(request):
+    end_date = timezone.now().date()
+    start_date = end_date.replace(day=1)
+
+    # Fetch all users
+    users = User.objects.all()
+
+    # Prepare a list to hold payroll data
+    payroll_data = []
+
+    for user in users:
+        attendance_records = AttendanceRecord.objects.filter(user=user, date__range=[start_date, end_date])
+        total_hours = attendance_records.aggregate(Sum('total_hours_worked'))['total_hours_worked__sum'] or timedelta()
+
+        # Convert total hours worked to float representing hours
+        total_hours_float = total_hours.total_seconds() / 3600  # Total hours as a float
+
+        # Calculate salary based on hourly rate
+        hourly_rate = 20.0  # Example hourly rate
+        salary = total_hours_float * hourly_rate
+
+        # Round total_hours and salary to two decimal places
+        total_hours_rounded = round(total_hours_float, 3)
+        salary_rounded = round(salary, 3)
+
+        # Add the user's payroll info to the list
+        payroll_data.append({
+            'UserID': user.id,
+            'Full Name': f"{user.first_name} {user.last_name}",
+            'Total Hours Worked': total_hours_rounded,
+            'Salary': salary_rounded
+        })
+
+    # Create a DataFrame from the payroll data
+    payroll_df = pd.DataFrame(payroll_data)
+
+    # Export the DataFrame to an Excel file
+    response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    response['Content-Disposition'] = 'attachment; filename=payroll.xlsx'
+    payroll_df.to_excel(response, index=False)
+
+    return response
