@@ -21,15 +21,6 @@
             </button>
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav ms-auto">
-                    <li class="nav-item">
-                        <a class="nav-link" href="#about">About</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="#motivation">Motivation</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="#members">Members</a>
-                    </li>
                     {% if user.is_authenticated %}
                          {% if user.is_superuser %}
                          <li class="nav-item"><a class="nav-link">Hello, {{ user.first_name }}</a></li>
@@ -57,14 +48,14 @@
         <!-- Hero Image -->
         <div class="container-fluid p-0">
             <img src="https://mdbcdn.b-cdn.net/img/Photos/new-templates/bootstrap-registration/draw1.webp" 
-                 class="img-fluid w-100" alt="Sample Image" style="max-height: 650px; object-fit: cover;">
+                 class="img-fluid w-100" alt="Sample Image" style="max-height: 500px; object-fit: cover;">
         </div>
     
         <!-- About Section -->
         <section id="about" class="py-5">
             <div class="container">
                 <h2>About the Project</h2>
-                <p class="lead">This is where you describe your project, its purpose, and its key features. Highlight what makes it unique and what problems it aims to solve.</p>
+                <p class="lead">Clockwise Trach is a website for attendance logging and payroll integration  </p>
             </div>
         </section>
     
@@ -72,7 +63,7 @@
         <section id="motivation" class="py-5 bg-light">
             <div class="container">
                 <h2>Motivation</h2>
-                <p class="lead">Here, you can discuss the motivation behind the project. What inspired you to start it? What challenges or gaps does it address?</p>
+                <p class="lead">Mr. Daniel Quartey</p>
             </div>
         </section>
     
@@ -80,7 +71,7 @@
         <section id="members" class="py-5">
             <div class="container">
                 <h2>Project Members</h2>
-                <p class="lead">Introduce the team members, their roles, and their contributions to the project. You can also include brief bios or links to their professional profiles.</p>
+                <p class="lead">McNobert - Team lead, Sinam - Member , Jasmine - Disturber & Stress Giver</p>
             </div>
         </section>
     
