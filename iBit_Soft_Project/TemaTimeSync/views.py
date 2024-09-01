@@ -135,8 +135,7 @@ def logout(request):
                 total_hours_worked = last_logout_datetime - first_login_datetime
                 attendance.total_hours_worked = total_hours_worked
 
-                # Check if user logged out after 5:00 PM
-                end_of_workday = time(17, 0)  # 5:00 PM
+                end_of_workday = time(16, 0)
                 if current_time > end_of_workday:
                     overtime_duration = last_logout_datetime - datetime.combine(today, end_of_workday)
                     attendance.overtime = True
