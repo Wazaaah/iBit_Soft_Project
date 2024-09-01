@@ -4,7 +4,7 @@ from django.contrib.auth.models import User, auth
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.timezone import now
-from .forms import TimeframeForm, UserTimeframeForm, UserMonthlyForm
+from .forms import TimeframeForm, UserTimeframeForm, UserMonthlyForm, PayrollMonthForm, MultiDateSelectionForm
 from .models import AttendanceRecord, UserOffDay
 from django.db.models import Sum
 from datetime import timedelta
@@ -377,7 +377,7 @@ def report_for_given_time_frame(request):
             for user in users:
                 attendance_records = AttendanceRecord.objects.filter(user=user, date__range=[start_date, end_date])
                 total_hours = attendance_records.aggregate(Sum('total_hours_worked'))[
-                    'total_hours_worked__sum'] or timedelta()
+                                  'total_hours_worked__sum'] or timedelta()
 
                 # Format total_hours to HH:MM:SS
                 total_hours_formatted = str(total_hours)[:-7] if total_hours.days == 0 else str(total_hours)
@@ -386,7 +386,8 @@ def report_for_given_time_frame(request):
                 user_hours[user.id] = {
                     'full_name': f"{user.first_name} {user.last_name}",
                     'total_hours': total_hours_formatted,
-                    'detail_link': reverse('report_for_given_time_frame_user') + f"?user_id={user.id}&start_date={start_date}&end_date={end_date}"
+                    'detail_link': reverse(
+                        'report_for_given_time_frame_user') + f"?user_id={user.id}&start_date={start_date}&end_date={end_date}"
                 }
 
             # Format the dates for the template
@@ -469,113 +470,182 @@ def predict_lateness_for_the_rest_of_the_month(request):
 
 
 def generate_payroll(request):
-    end_date = timezone.now().date()
-    start_date = end_date.replace(day=1)
+    if request.method == 'POST':
+        form = PayrollMonthForm(request.POST)
+        if form.is_valid():
+            month = int(form.cleaned_data['month'])
+            year = int(form.cleaned_data['year'])
 
-    # Fetch all users
-    users = User.objects.all()
+            # Calculate start and end dates based on selected month and year
+            start_date = timezone.datetime(year, month, 1).date()
+            end_date = (timezone.datetime(year, month + 1, 1).date() if month != 12 else timezone.datetime(year + 1, 1,
+                                                                                                           1).date()) - timedelta(
+                days=1)
 
-    # Prepare a dictionary to hold payroll data
-    payroll_data = {}
+            # Fetch all users
+            users = User.objects.all()
 
-    # Define hourly rates
-    normal_hourly_rate = 20.0
-    overtime_hourly_rate = 5.0
+            # Prepare a dictionary to hold payroll data
+            payroll_data = {}
 
-    for user in users:
-        attendance_records = AttendanceRecord.objects.filter(user=user, date__range=[start_date, end_date])
-        total_hours = attendance_records.aggregate(Sum('total_hours_worked'))['total_hours_worked__sum'] or timedelta()
+            # Define hourly rates
+            normal_hourly_rate = 20.0
+            overtime_hourly_rate = 5.0
 
-        # Calculate total overtime hours
-        total_overtime_hours = attendance_records.filter(overtime=True).aggregate(Sum('overtime_hours'))['overtime_hours__sum'] or timedelta()
+            for user in users:
+                attendance_records = AttendanceRecord.objects.filter(user=user, date__range=[start_date, end_date])
+                total_hours = attendance_records.aggregate(Sum('total_hours_worked'))[
+                                  'total_hours_worked__sum'] or timedelta()
 
-        # Convert total hours worked and overtime hours to float representing hours
-        total_hours_float = total_hours.total_seconds() / 3600
-        total_overtime_hours_float = total_overtime_hours.total_seconds() / 3600
+                # Calculate total overtime hours
+                total_overtime_hours = attendance_records.filter(overtime=True).aggregate(Sum('overtime_hours'))[
+                                           'overtime_hours__sum'] or timedelta()
 
-        # Calculate normal hours
-        normal_hours_float = total_hours_float - total_overtime_hours_float
+                # Convert total hours worked and overtime hours to float representing hours
+                total_hours_float = total_hours.total_seconds() / 3600
+                total_overtime_hours_float = total_overtime_hours.total_seconds() / 3600
 
-        # Calculate salary based on hourly rates
-        normal_salary = normal_hours_float * normal_hourly_rate
-        overtime_salary = total_overtime_hours_float * overtime_hourly_rate
-        total_salary = normal_salary + overtime_salary
+                # Calculate normal hours
+                normal_hours_float = total_hours_float - total_overtime_hours_float
 
-        # Round hours and salary to two decimal places
-        normal_hours_rounded = round(normal_hours_float, 2)
-        total_overtime_hours_rounded = round(total_overtime_hours_float, 2)
-        total_salary_rounded = round(total_salary, 2)
+                # Calculate salary based on hourly rates
+                normal_salary = normal_hours_float * normal_hourly_rate
+                overtime_salary = total_overtime_hours_float * overtime_hourly_rate
+                total_salary = normal_salary + overtime_salary
 
-        # Add the user's payroll info to the dictionary
-        payroll_data[user.id] = {
-            'full_name': f"{user.first_name} {user.last_name}",
-            'normal_hours': normal_hours_rounded,
-            'overtime_hours': total_overtime_hours_rounded,
-            'total_hours': round(total_hours_float, 2),
-            'normal_hourly_rate': normal_hourly_rate,
-            'overtime_hourly_rate': overtime_hourly_rate,
-            'salary': total_salary_rounded,
-        }
+                # Round hours and salary to two decimal places
+                normal_hours_rounded = round(normal_hours_float, 2)
+                total_overtime_hours_rounded = round(total_overtime_hours_float, 2)
+                total_salary_rounded = round(total_salary, 2)
 
-    context = {'payroll_data': payroll_data}
+                # Add the user's payroll info to the dictionary
+                payroll_data[user.id] = {
+                    'full_name': f"{user.first_name} {user.last_name}",
+                    'normal_hours': normal_hours_rounded,
+                    'overtime_hours': total_overtime_hours_rounded,
+                    'total_hours': round(total_hours_float, 2),
+                    'normal_hourly_rate': normal_hourly_rate,
+                    'overtime_hourly_rate': overtime_hourly_rate,
+                    'salary': total_salary_rounded,
+                }
+
+            context = {'payroll_data': payroll_data, 'form': form}
+            return render(request, 'payroll.html', context)
+
+    else:
+        form = PayrollMonthForm()
+
+    context = {'form': form}
     return render(request, 'payroll.html', context)
 
 
 def export_to_excel(request):
-    end_date = timezone.now().date()
-    start_date = end_date.replace(day=1)
+    if request.method == 'POST':
+        form = PayrollMonthForm(request.POST)
+        if form.is_valid():
+            month = int(form.cleaned_data['month'])
+            year = int(form.cleaned_data['year'])
 
-    # Fetch all users
-    users = User.objects.all()
+            # Calculate start and end dates based on selected month and year
+            start_date = timezone.datetime(year, month, 1).date()
+            end_date = (timezone.datetime(year, month + 1, 1).date() if month != 12 else timezone.datetime(year + 1, 1,
+                                                                                                           1).date()) - timedelta(
+                days=1)
 
-    # Prepare a list to hold payroll data
-    payroll_data = []
+            # Fetch all users
+            users = User.objects.all()
 
-    # Define hourly rates
-    normal_hourly_rate = 20.0
-    overtime_hourly_rate = 5.0
+            # Prepare a list to hold payroll data
+            payroll_data = []
 
-    for user in users:
-        attendance_records = AttendanceRecord.objects.filter(user=user, date__range=[start_date, end_date])
-        total_hours = attendance_records.aggregate(Sum('total_hours_worked'))['total_hours_worked__sum'] or timedelta()
+            # Define hourly rates
+            normal_hourly_rate = 20.0
+            overtime_hourly_rate = 5.0
 
-        # Calculate total overtime hours
-        total_overtime_hours = attendance_records.filter(overtime=True).aggregate(Sum('overtime_hours'))['overtime_hours__sum'] or timedelta()
+            for user in users:
+                attendance_records = AttendanceRecord.objects.filter(user=user, date__range=[start_date, end_date])
+                total_hours = attendance_records.aggregate(Sum('total_hours_worked'))[
+                                  'total_hours_worked__sum'] or timedelta()
 
-        # Convert total hours worked and overtime hours to float representing hours
-        total_hours_float = total_hours.total_seconds() / 3600
-        total_overtime_hours_float = total_overtime_hours.total_seconds() / 3600
+                # Calculate total overtime hours
+                total_overtime_hours = attendance_records.filter(overtime=True).aggregate(Sum('overtime_hours'))[
+                                           'overtime_hours__sum'] or timedelta()
 
-        # Calculate normal hours
-        normal_hours_float = total_hours_float - total_overtime_hours_float
+                # Convert total hours worked and overtime hours to float representing hours
+                total_hours_float = total_hours.total_seconds() / 3600
+                total_overtime_hours_float = total_overtime_hours.total_seconds() / 3600
 
-        # Calculate salary based on hourly rates
-        normal_salary = normal_hours_float * normal_hourly_rate
-        overtime_salary = total_overtime_hours_float * overtime_hourly_rate
-        total_salary = normal_salary + overtime_salary
+                # Calculate normal hours
+                normal_hours_float = total_hours_float - total_overtime_hours_float
 
-        # Round hours and salary to two decimal places
-        normal_hours_rounded = round(normal_hours_float, 2)
-        total_overtime_hours_rounded = round(total_overtime_hours_float, 2)
-        total_salary_rounded = round(total_salary, 2)
+                # Calculate salary based on hourly rates
+                normal_salary = normal_hours_float * normal_hourly_rate
+                overtime_salary = total_overtime_hours_float * overtime_hourly_rate
+                total_salary = normal_salary + overtime_salary
 
-        # Add the user's payroll info to the list
-        payroll_data.append({
-            'UserID': user.id,
-            'Full Name': f"{user.first_name} {user.last_name}",
-            'Normal Hours Worked': normal_hours_rounded,
-            'Overtime Hours Worked': total_overtime_hours_rounded,
-            'Normal Hourly Rate': normal_hourly_rate,
-            'Overtime Hourly Rate': overtime_hourly_rate,
-            'Salary': total_salary_rounded
-        })
+                # Round hours and salary to two decimal places
+                normal_hours_rounded = round(normal_hours_float, 2)
+                total_overtime_hours_rounded = round(total_overtime_hours_float, 2)
+                total_salary_rounded = round(total_salary, 2)
 
-    # Create a DataFrame from the payroll data
-    payroll_df = pd.DataFrame(payroll_data)
+                # Add the user's payroll info to the list
+                payroll_data.append({
+                    'UserID': user.id,
+                    'Full Name': f"{user.first_name} {user.last_name}",
+                    'Normal Hours Worked': normal_hours_rounded,
+                    'Overtime Hours Worked': total_overtime_hours_rounded,
+                    'Normal Hourly Rate': normal_hourly_rate,
+                    'Overtime Hourly Rate': overtime_hourly_rate,
+                    'Salary': total_salary_rounded
+                })
 
-    # Export the DataFrame to an Excel file
-    response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-    response['Content-Disposition'] = 'attachment; filename=payroll.xlsx'
-    payroll_df.to_excel(response, index=False)
+            # Create a DataFrame from the payroll data
+            payroll_df = pd.DataFrame(payroll_data)
 
-    return response
+            # Export the DataFrame to an Excel file
+            response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+            response['Content-Disposition'] = f'attachment; filename=payroll_{year}_{month}.xlsx'
+            payroll_df.to_excel(response, index=False)
+
+            return response
+
+    else:
+        form = PayrollMonthForm()
+
+    context = {'form': form}
+    return render(request, 'export_payroll.html', context)
+
+
+def multi_date_report(request):
+    if request.method == 'POST':
+        form = MultiDateSelectionForm(request.POST)
+        if form.is_valid():
+            raw_dates = form.cleaned_data['dates']
+            date_list = [date.strip() for date in raw_dates.replace('\n', ',').split(',') if date.strip()]
+            valid_dates = []
+            for date in date_list:
+                try:
+                    datetime.strptime(date, '%Y-%m-%d')
+                    valid_dates.append(date)
+                except ValueError:
+                    continue
+
+            request.session['selected_dates'] = valid_dates
+            return redirect('multi_date_report')
+    else:
+        form = MultiDateSelectionForm()
+
+    selected_dates = request.session.get('selected_dates', [])
+    reports = {}
+    if selected_dates:
+        for date in selected_dates:
+            reports[date] = AttendanceRecord.objects.filter(date=date)
+
+    return render(request, 'multi_date_report.html',
+                  {'form': form, 'reports': reports, 'selected_dates': selected_dates})
+
+
+def detailed_report(request, user_id, date):
+    report = get_object_or_404(AttendanceRecord, user_id=user_id, date=date)
+    user = get_object_or_404(User, id=user_id)
+    return render(request, 'detailed_report.html', {'report': report, 'user': user})

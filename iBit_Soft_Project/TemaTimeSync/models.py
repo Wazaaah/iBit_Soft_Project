@@ -13,7 +13,7 @@ class AttendanceRecord(models.Model):
     is_late = models.BooleanField(default=False)
 
     # New fields
-    expected_hours = models.IntegerField(default=9, editable=False)
+    expected_hours = models.IntegerField(default=8, editable=True)
     overtime = models.BooleanField(default=False)
     overtime_hours = models.DurationField(default=timedelta(0), blank=True)
 

@@ -16,8 +16,11 @@ urlpatterns = [
     path('predict_lateness_for_the_rest_of_the_month', views.predict_lateness_for_the_rest_of_the_month,name='predict_lateness_for_the_rest_of_the_month'),
     path('generate_payroll', views.generate_payroll, name='generate_payroll'),
     path('export_to_excel', views.export_to_excel, name='export_to_excel'),
-
+    path('multi-date-report', views.multi_date_report, name='multi_date_report'),
+    path('detailed-report/<int:user_id>/<str:date>/', views.detailed_report, name='detailed_report'),
 ]
+
+
 
 
 
