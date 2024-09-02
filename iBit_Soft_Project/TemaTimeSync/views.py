@@ -149,7 +149,7 @@ def logout(request):
             auth.logout(request)
             return redirect('/')
         else:
-            messages.error(request, "Invalid Credentials or you are not logged in.")
+            messages.error(request, "Invalid Credentials")
             return redirect('login')
     else:
         return render(request, 'logout.html')
