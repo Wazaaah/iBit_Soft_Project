@@ -14,6 +14,8 @@ import requests
 import pandas as pd
 from django.http import HttpResponse
 from django.contrib.auth import authenticate, login as auth_login
+from .constants import SYSTEM_START_DATE
+
 
 
 # Create your views here.
@@ -174,193 +176,439 @@ def admin_report(request):
 
 
 def report_for_today(request):
-    # Get today's date
     today = timezone.now().date()
+    day_name = today.strftime('%A')
 
-    # Fetch attendance records for today
-    records = AttendanceRecord.objects.filter(date=today)
+    users = User.objects.all()
+    records = []
 
-    # Create a list to hold formatted records
-    formatted_records = []
-
-    for record in records:
-        total_hours = record.total_hours_worked
-
-        # Format total_hours to HH:MM:SS
-        total_hours_formatted = str(total_hours)[:-7]
-
-        # Add the record with formatted total hours to the list
-        formatted_records.append({
-            'user': record.user,
-            'date': record.date,
-            'first_login': record.first_login,
-            'total_hours_formatted': total_hours_formatted,
-            'is_late': record.is_late,
-            'expected_hours': record.expected_hours,
-            'overtime': record.overtime,
-            'overtime_hours': record.overtime_hours
-        })
+    for user in users:
+        # Check if today is before system start date
+        if today < SYSTEM_START_DATE:
+            status = 'No data found (system not active)'
+            record = {
+                'user': user,
+                'date': today,
+                'status': status,
+                'first_login': None,
+                'last_logout': None,
+                'total_hours_worked': None,
+                'is_late': None,
+                'expected_hours': None,
+                'overtime': None,
+                'overtime_hours': None
+            }
+        # Check if today is weekend
+        elif day_name in ['Saturday', 'Sunday']:
+            status = 'No data found (weekend)'
+            record = {
+                'user': user,
+                'date': today,
+                'status': status,
+                'first_login': None,
+                'last_logout': None,
+                'total_hours_worked': None,
+                'is_late': None,
+                'expected_hours': None,
+                'overtime': None,
+                'overtime_hours': None
+            }
+        # Check if today is user's off day
+        elif UserOffDay.objects.filter(user=user, off_day=day_name).exists():
+            status = f'No data found (off day)'
+            record = {
+                'user': user,
+                'date': today,
+                'status': status,
+                'first_login': None,
+                'last_logout': None,
+                'total_hours_worked': None,
+                'is_late': None,
+                'expected_hours': None,
+                'overtime': None,
+                'overtime_hours': None
+            }
+        else:
+            # Fetch attendance record
+            attendance = AttendanceRecord.objects.filter(user=user, date=today).first()
+            if attendance:
+                status = 'Present'
+                record = {
+                    'user': user,
+                    'date': today,
+                    'status': status,
+                    'first_login': attendance.first_login,
+                    'last_logout': attendance.last_logout,
+                    'total_hours_worked': attendance.total_hours_worked,
+                    'is_late': attendance.is_late,
+                    'expected_hours': attendance.expected_hours,
+                    'overtime': attendance.overtime,
+                    'overtime_hours': attendance.overtime_hours
+                }
+            else:
+                status = 'No data found (absent)'
+                record = {
+                    'user': user,
+                    'date': today,
+                    'status': status,
+                    'first_login': None,
+                    'last_logout': None,
+                    'total_hours_worked': None,
+                    'is_late': None,
+                    'expected_hours': None,
+                    'overtime': None,
+                    'overtime_hours': None
+                }
+        records.append(record)
 
     context = {
-        'records': formatted_records
+        'records': records,
+        'date': today
     }
 
     return render(request, 'report_for_today.html', context)
 
 
+
+
 def report_for_the_month(request):
-    end_date = timezone.now().date()
-    start_date = end_date.replace(day=1)
+    today = timezone.now().date()
+    year = today.year
+    month = today.month
 
-    # Fetch all users
+    # Calculate start and end dates for the month
+    start_date = date(year, month, 1)
+    if month == 12:
+        end_date = date(year, 12, 31)
+    else:
+        end_date = date(year, month + 1, 1) - timedelta(days=1)
+
     users = User.objects.all()
-
-    # Prepare a dictionary to hold user_id, full name, and total hours
-    user_hours = {}
+    month_records = []
 
     for user in users:
-        attendance_records = AttendanceRecord.objects.filter(user=user, date__range=[start_date, end_date])
-        total_hours = attendance_records.aggregate(Sum('total_hours_worked'))['total_hours_worked__sum'] or timedelta()
-
-        # Format total_hours to HH:MM:SS
-        total_hours_formatted = str(total_hours)[:-7] if total_hours.days == 0 else str(total_hours)
-
-        # Store user details including user_id, full name, and total hours
-        user_hours[user.id] = {
-            'full_name': f"{user.first_name} {user.last_name}",
-            'total_hours': total_hours_formatted
-        }
-
-    # Format the dates for the template
-    start_date_formatted = start_date.strftime('%B %Y')
-    end_date_formatted = end_date.strftime('%B %Y')
+        daily_records = []
+        current_date = start_date
+        while current_date <= end_date:
+            day_name = current_date.strftime('%A')
+            # Check system start date
+            if current_date < SYSTEM_START_DATE:
+                status = 'No data found (system not active)'
+                record = {
+                    'date': current_date,
+                    'status': status,
+                    'first_login': None,
+                    'last_logout': None,
+                    'total_hours_worked': None,
+                    'is_late': None,
+                    'expected_hours': None,
+                    'overtime': None,
+                    'overtime_hours': None
+                }
+            # Check weekend
+            elif day_name in ['Saturday', 'Sunday']:
+                status = 'No data found (weekend)'
+                record = {
+                    'date': current_date,
+                    'status': status,
+                    'first_login': None,
+                    'last_logout': None,
+                    'total_hours_worked': None,
+                    'is_late': None,
+                    'expected_hours': None,
+                    'overtime': None,
+                    'overtime_hours': None
+                }
+            # Check user's off day
+            elif UserOffDay.objects.filter(user=user, off_day=day_name).exists():
+                status = 'No data found (off day)'
+                record = {
+                    'date': current_date,
+                    'status': status,
+                    'first_login': None,
+                    'last_logout': None,
+                    'total_hours_worked': None,
+                    'is_late': None,
+                    'expected_hours': None,
+                    'overtime': None,
+                    'overtime_hours': None
+                }
+            else:
+                attendance = AttendanceRecord.objects.filter(user=user, date=current_date).first()
+                if attendance:
+                    status = 'Present'
+                    record = {
+                        'date': current_date,
+                        'status': status,
+                        'first_login': attendance.first_login,
+                        'last_logout': attendance.last_logout,
+                        'total_hours_worked': attendance.total_hours_worked,
+                        'is_late': attendance.is_late,
+                        'expected_hours': attendance.expected_hours,
+                        'overtime': attendance.overtime,
+                        'overtime_hours': attendance.overtime_hours
+                    }
+                else:
+                    status = 'No data found (absent)'
+                    record = {
+                        'date': current_date,
+                        'status': status,
+                        'first_login': None,
+                        'last_logout': None,
+                        'total_hours_worked': None,
+                        'is_late': None,
+                        'expected_hours': None,
+                        'overtime': None,
+                        'overtime_hours': None
+                    }
+            daily_records.append(record)
+            current_date += timedelta(days=1)
+        month_records.append({
+            'user': user,
+            'daily_records': daily_records
+        })
 
     context = {
-        'user_hours': user_hours,
-        'start_date': start_date_formatted,
-        'end_date': end_date_formatted
+        'month_records': month_records,
+        'month_year': start_date.strftime('%B %Y')
     }
 
     return render(request, 'report_for_the_month.html', context)
 
 
+
+
+
 def report_for_the_month_user(request):
     user_hours = None
-    start_date_formatted = end_date_formatted = None
     daily_records = []
     total_hours_for_month = timedelta()
+    start_date_formatted = end_date_formatted = None
 
     if request.method == 'POST':
         form = UserMonthlyForm(request.POST)
         if form.is_valid():
             user_id = form.cleaned_data['user_id']
-            end_date = timezone.now().date()
-            start_date = end_date.replace(day=1)
+            month = form.cleaned_data.get('month', timezone.now().month)
+            year = form.cleaned_data.get('year', timezone.now().year)
 
             user = get_object_or_404(User, id=user_id)
+            start_date = date(year, month, 1)
+            if month == 12:
+                end_date = date(year, 12, 31)
+            else:
+                end_date = date(year, month + 1, 1) - timedelta(days=1)
 
-            # Get attendance records for each day in the month
             current_date = start_date
             while current_date <= end_date:
-                record = AttendanceRecord.objects.filter(user=user, date=current_date).first()
-
-                if record:
-                    total_hours_worked = record.total_hours_worked or timedelta()  # Default to timedelta() if None
-                    total_hours_for_month += total_hours_worked  # Sum the total hours worked
-                    total_hours_formatted = str(total_hours_worked)[:-7] if total_hours_worked.days == 0 else str(total_hours_worked)
-                
-
-                    daily_records.append({
+                day_name = current_date.strftime('%A')
+                # Check system start date
+                if current_date < SYSTEM_START_DATE:
+                    status = 'No data found (system not active)'
+                    record = {
                         'date': current_date,
-                        'total_hours': total_hours_formatted,
-                        'first_login': record.first_login,
-                        'is_late': record.is_late,
-                        'expected_hours': record.expected_hours,
-                        'overtime': record.overtime,
-                        'overtime_hours': record.overtime_hours
-                    })
+                        'status': status,
+                        'first_login': None,
+                        'last_logout': None,
+                        'total_hours_worked': None,
+                        'is_late': None,
+                        'expected_hours': None,
+                        'overtime': None,
+                        'overtime_hours': None
+                    }
+                # Check weekend
+                elif day_name in ['Saturday', 'Sunday']:
+                    status = 'No data found (weekend)'
+                    record = {
+                        'date': current_date,
+                        'status': status,
+                        'first_login': None,
+                        'last_logout': None,
+                        'total_hours_worked': None,
+                        'is_late': None,
+                        'expected_hours': None,
+                        'overtime': None,
+                        'overtime_hours': None
+                    }
+                # Check user's off day
+                elif UserOffDay.objects.filter(user=user, off_day=day_name).exists():
+                    status = 'No data found (off day)'
+                    record = {
+                        'date': current_date,
+                        'status': status,
+                        'first_login': None,
+                        'last_logout': None,
+                        'total_hours_worked': None,
+                        'is_late': None,
+                        'expected_hours': None,
+                        'overtime': None,
+                        'overtime_hours': None
+                    }
+                else:
+                    attendance = AttendanceRecord.objects.filter(user=user, date=current_date).first()
+                    if attendance:
+                        status = 'Present'
+                        total_hours_for_month += attendance.total_hours_worked or timedelta()
+                        record = {
+                            'date': current_date,
+                            'status': status,
+                            'first_login': attendance.first_login,
+                            'last_logout': attendance.last_logout,
+                            'total_hours_worked': attendance.total_hours_worked,
+                            'is_late': attendance.is_late,
+                            'expected_hours': attendance.expected_hours,
+                            'overtime': attendance.overtime,
+                            'overtime_hours': attendance.overtime_hours
+                        }
+                    else:
+                        status = 'No data found (absent)'
+                        record = {
+                            'date': current_date,
+                            'status': status,
+                            'first_login': None,
+                            'last_logout': None,
+                            'total_hours_worked': None,
+                            'is_late': None,
+                            'expected_hours': None,
+                            'overtime': None,
+                            'overtime_hours': None
+                        }
+                daily_records.append(record)
                 current_date += timedelta(days=1)
 
-            # Format the dates for the template
+            total_hours_formatted = str(total_hours_for_month)[:-7] if total_hours_for_month else "0:00:00"
             start_date_formatted = start_date.strftime('%B %d, %Y')
             end_date_formatted = end_date.strftime('%B %d, %Y')
 
             user_hours = {
-                'user_id': user.id,
-                'full_name': f"{user.first_name} {user.last_name}",
-                'total_hours_for_month': str(total_hours_for_month)[:-7]  # Format total_hours to HH:MM:SS
+                'user': user,
+                'total_hours_for_month': total_hours_formatted
             }
-
     else:
         form = UserMonthlyForm()
 
     context = {
         'form': form,
         'user_hours': user_hours,
+        'daily_records': daily_records,
         'start_date': start_date_formatted,
-        'end_date': end_date_formatted,
-        'daily_records': daily_records
+        'end_date': end_date_formatted
     }
 
     return render(request, 'report_for_the_month_user.html', context)
 
 
+
+
 def report_for_given_time_frame_user(request):
     user_hours = None
     daily_records = []
+    start_date_formatted = end_date_formatted = None
 
-    # Retrieve the query parameters
-    user_id = request.GET.get('user_id')
-    start_date = request.GET.get('start_date')
-    end_date = request.GET.get('end_date')
+    if request.method == 'POST':
+        form = UserTimeframeForm(request.POST)
+        if form.is_valid():
+            user_id = form.cleaned_data['user_id']
+            start_date = form.cleaned_data['start_date']
+            end_date = form.cleaned_data['end_date']
 
-    # Ensure all parameters are present
-    if user_id and start_date and end_date:
-        user = get_object_or_404(User, id=user_id)
+            user = get_object_or_404(User, id=user_id)
+            total_hours = timedelta()
+            current_date = start_date
+            while current_date <= end_date:
+                day_name = current_date.strftime('%A')
+                if current_date < SYSTEM_START_DATE:
+                    status = 'No data found (system not active)'
+                    record = {
+                        'date': current_date,
+                        'status': status,
+                        'first_login': None,
+                        'last_logout': None,
+                        'total_hours_worked': None,
+                        'is_late': None,
+                        'expected_hours': None,
+                        'overtime': None,
+                        'overtime_hours': None
+                    }
+                elif day_name in ['Saturday', 'Sunday']:
+                    status = 'No data found (weekend)'
+                    record = {
+                        'date': current_date,
+                        'status': status,
+                        'first_login': None,
+                        'last_logout': None,
+                        'total_hours_worked': None,
+                        'is_late': None,
+                        'expected_hours': None,
+                        'overtime': None,
+                        'overtime_hours': None
+                    }
+                elif UserOffDay.objects.filter(user=user, off_day=day_name).exists():
+                    status = 'No data found (off day)'
+                    record = {
+                        'date': current_date,
+                        'status': status,
+                        'first_login': None,
+                        'last_logout': None,
+                        'total_hours_worked': None,
+                        'is_late': None,
+                        'expected_hours': None,
+                        'overtime': None,
+                        'overtime_hours': None
+                    }
+                else:
+                    attendance = AttendanceRecord.objects.filter(user=user, date=current_date).first()
+                    if attendance:
+                        status = 'Present'
+                        total_hours += attendance.total_hours_worked or timedelta()
+                        record = {
+                            'date': current_date,
+                            'status': status,
+                            'first_login': attendance.first_login,
+                            'last_logout': attendance.last_logout,
+                            'total_hours_worked': attendance.total_hours_worked,
+                            'is_late': attendance.is_late,
+                            'expected_hours': attendance.expected_hours,
+                            'overtime': attendance.overtime,
+                            'overtime_hours': attendance.overtime_hours
+                        }
+                    else:
+                        status = 'No data found (absent)'
+                        record = {
+                            'date': current_date,
+                            'status': status,
+                            'first_login': None,
+                            'last_logout': None,
+                            'total_hours_worked': None,
+                            'is_late': None,
+                            'expected_hours': None,
+                            'overtime': None,
+                            'overtime_hours': None
+                        }
+                daily_records.append(record)
+                current_date += timedelta(days=1)
 
-        start_date = timezone.datetime.strptime(start_date, '%Y-%m-%d').date()
-        end_date = timezone.datetime.strptime(end_date, '%Y-%m-%d').date()
+            total_hours_formatted = str(total_hours)[:-7] if total_hours else "0:00:00"
+            start_date_formatted = start_date.strftime('%B %d, %Y')
+            end_date_formatted = end_date.strftime('%B %d, %Y')
 
-        # Get attendance records and calculate total hours
-        attendance_records = AttendanceRecord.objects.filter(user=user, date__range=[start_date, end_date])
-
-        total_hours = timedelta()
-        for record in attendance_records:
-            total_time_format = str(record.total_hours_worked)[:-7]
-            daily_records.append({
-                'date': record.date,
-                'first_login': record.first_login,
-                'is_late': record.is_late,
-                'last_logout': record.last_logout,
-                'total_hours_worked': total_time_format,
-                'expected_hours': record.expected_hours,
-                'overtime': record.overtime,
-                'overtime_hours': record.overtime_hours
-            })
-            total_hours += record.total_hours_worked or timedelta()
-
-        total_hours_formatted = str(total_hours)[:-7] if total_hours.days == 0 else str(total_hours)
-
-        user_hours = {
-            'user_id': user_id,
-            'first_name': user.first_name,
-            'last_name': user.last_name,
-            'total_hours': total_hours_formatted
-        }
-
-        start_date_formatted = start_date.strftime('%B %d, %Y')
-        end_date_formatted = end_date.strftime('%B %d, %Y')
-
-        context = {
-            'user_hours': user_hours,
-            'daily_records': daily_records,
-            'start_date': start_date_formatted,
-            'end_date': end_date_formatted
-        }
-        return render(request, 'report_for_given_time_frame_user.html', context)
+            user_hours = {
+                'user': user,
+                'total_hours': total_hours_formatted
+            }
     else:
-        # If required parameters are missing, redirect or show an error
-        return redirect('report_for_given_time_frame')
+        form = UserTimeframeForm()
+
+    context = {
+        'form': form,
+        'user_hours': user_hours,
+        'daily_records': daily_records,
+        'start_date': start_date_formatted,
+        'end_date': end_date_formatted
+    }
+    return render(request, 'report_for_given_time_frame_user.html', context)
+
+
 
 
 def report_for_given_time_frame(request):
@@ -408,6 +656,8 @@ def report_for_given_time_frame(request):
     }
 
     return render(request, 'report_for_given_time_frame.html', context)
+
+
 
 
 def predict_lateness_for_the_rest_of_the_month(request):
