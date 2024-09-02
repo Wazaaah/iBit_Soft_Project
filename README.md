@@ -36,15 +36,11 @@ This project provides a comprehensive solution for managing employee attendance,
 - **Database Management**: Handles authentication, attendance logging, and salary calculations.
 - **API Integration**: Provides endpoints for third-party payroll systems.
 
-### 2. **Machine Learning Model**
-- **Latecomer Identification**: Uses classification models to detect and predict late arrivals.
-- **Time Series Forecasting**: Predicts attendance patterns to adjust payroll calculations.
-
-### 3. **Payroll System Integration**
+### 2. **Payroll System Integration**
 - **Automated Calculations**: Applies custom business rules to calculate salaries based on attendance data.
 - **Export Options**: Connects with existing payroll software or exports reports in standard formats (e.g., CSV).
 
-### 4. **User Interface**
+### 3. **User Interface**
 - **Employee Portal**: For sign-in and attendance tracking.
 - **Admin Panel**: For HR to manage attendance, view payroll reports, and configure salary rules.
 
