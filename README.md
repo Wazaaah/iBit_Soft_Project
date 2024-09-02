@@ -16,14 +16,7 @@ This project provides a comprehensive solution for managing employee attendance,
 - **Logging**: Records check-in and check-out times.
 - **Tracking**: Monitors the days worked and hours spent per day.
 
-### 3. **Machine Learning Component**
-- **Late Arrival Detection and Prediction**:
-  - Uses classification models to identify employees who frequently arrive late.
-  - Predicts future late arrivals based on historical data.
-- **Analytics and Visualization**:
-  - Generates insights on punctuality, trends, and patterns over time.
-
-### 4. **Payroll Integration**
+### 3. **Payroll Integration**
 - **Automated Salary Calculation**:
   - Calculates salaries based on attendance, working hours, and late arrivals.
   - Integrates with existing payroll systems for automated updates.
@@ -31,7 +24,7 @@ This project provides a comprehensive solution for managing employee attendance,
 - **Reporting**:
   - Generates detailed monthly payroll reports for each employee, including attendance data, deductions, and bonuses.
 
-### 5. **Dashboard and Analytics**
+### 4. **Dashboard and Analytics**
 - **Centralized Dashboard**: 
   - For HR and management to monitor attendance, payroll, and employee performance.
 - **Visualizations**: 
