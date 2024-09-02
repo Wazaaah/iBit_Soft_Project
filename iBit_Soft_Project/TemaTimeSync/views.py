@@ -185,15 +185,16 @@ def report_for_today(request):
 
     for record in records:
         total_hours = record.total_hours_worked
+
         # Format total_hours to HH:MM:SS
-        # total_hours_formatted = str(total_hours)[:-7] if total_hours.days == 0 else str(total_hours)
+        total_hours_formatted = str(total_hours)[:-7]
 
         # Add the record with formatted total hours to the list
         formatted_records.append({
             'user': record.user,
             'date': record.date,
             'first_login': record.first_login,
-            'total_hours_formatted': total_hours,
+            'total_hours_formatted': total_hours_formatted,
             'is_late': record.is_late,
             'expected_hours': record.expected_hours,
             'overtime': record.overtime,
@@ -266,10 +267,12 @@ def report_for_the_month_user(request):
                 if record:
                     total_hours_worked = record.total_hours_worked or timedelta()  # Default to timedelta() if None
                     total_hours_for_month += total_hours_worked  # Sum the total hours worked
+                    total_hours_formatted = str(total_hours_worked)[:-7] if total_hours_worked.days == 0 else str(total_hours_worked)
+                
 
                     daily_records.append({
                         'date': current_date,
-                        'total_hours': total_hours_worked,
+                        'total_hours': total_hours_formatted,
                         'first_login': record.first_login,
                         'is_late': record.is_late,
                         'expected_hours': record.expected_hours,
@@ -323,12 +326,13 @@ def report_for_given_time_frame_user(request):
 
         total_hours = timedelta()
         for record in attendance_records:
+            total_time_format = str(record.total_hours_worked)[:-7]
             daily_records.append({
                 'date': record.date,
                 'first_login': record.first_login,
                 'is_late': record.is_late,
                 'last_logout': record.last_logout,
-                'total_hours_worked': record.total_hours_worked,
+                'total_hours_worked': total_time_format,
                 'expected_hours': record.expected_hours,
                 'overtime': record.overtime,
                 'overtime_hours': record.overtime_hours
